@@ -25,6 +25,7 @@ THE SOFTWARE.
 #lang racket/base
 
 (require (for-syntax racket/base))
+(provide infix:)
 
 (define-syntax-rule (<> a b) (not (= a b)))
 
