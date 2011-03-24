@@ -79,8 +79,8 @@ THE SOFTWARE.
                              (not (null? (cadr head))))
                         (cond
                           ((null? (cddr head))
-                           (begin (set! tail (cddr head))
-                                  (list (car head) (cadr head))))
+                           (set! tail (cddr head))
+                           (list (car head) (cadr head)))
                           ((eqv? (infix-get-class (caddr head)) 'binary)
                            (if (>= (infix-get-prioritet (car head))
                                    (infix-get-prioritet (caddr head)))
@@ -95,7 +95,7 @@ THE SOFTWARE.
          (if (null? tail)
              (list res)
              (cons res tail))))))
-
+  
   (define (infix-unary-rl-ops  expr)
     (let loop ((head expr))
       (cond
@@ -109,7 +109,7 @@ THE SOFTWARE.
                v)))
         (else
          (cons (car head) (loop (cdr head)))))))
-
+  
   (define (infix-parentheses expr)
     (let loop ((head expr))
       (cond
@@ -119,7 +119,7 @@ THE SOFTWARE.
          (cons (infix-format (car head)) (loop (cdr head))))
         (else
          (cons (car head) (loop (cdr head)))))))
-
+  
   (define (infix-format expr)
     (if (or (null? expr)
             (not (list? expr)))
