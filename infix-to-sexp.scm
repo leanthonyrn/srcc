@@ -1,5 +1,5 @@
 #|
-Infix->S-expression v0.0.4
+Infix->S-expression v0.5
 
 Copyright (c) 2010-2011  Mikhail Mosienko  <netluxe@gmail.com>
 
@@ -24,14 +24,16 @@ THE SOFTWARE.
 
 #lang racket/base
 
-(require (for-syntax racket/base))
+(require (for-syntax racket/base racket/match))
 (provide infix:)
 
 (define-syntax-rule (<> a b) (not (= a b)))
 
 (define-for-syntax infix-operators
   (make-hash
-   '((not        9    unary     right-left)
+   '((not        8    unary     right-left)
+     (add1       9    unary     right-left)
+     (sub1       9    unary     right-left)
      (*          5    binary    left-right)
      (/          5    binary    left-right)
      (modulo     5    binary    left-right)
@@ -49,6 +51,9 @@ THE SOFTWARE.
 (define-for-syntax (infix-operator? op)
   (hash-ref infix-operators op #f))
 
+(define-for-syntax (not-infix-operator? op)
+  (not (hash-ref infix-operators op #f)))
+
 (define-for-syntax (infix-get-prioritet op)
   (and (hash-ref infix-operators op #f)
        (car (hash-ref infix-operators op))))
@@ -61,119 +66,81 @@ THE SOFTWARE.
   (and (hash-ref infix-operators op #f)
        (caddr (hash-ref infix-operators op))))
 
+(define-for-syntax (infix-oper&bin&lr? op)
+  (and (hash-ref infix-operators op #f)
+       (eq? (cadr (hash-ref infix-operators op)) 'binary)
+       (eq? (caddr (hash-ref infix-operators op)) 'left-right)))
+
+(define-for-syntax (infix-oper&unr&rl? op)
+  (and (hash-ref infix-operators op #f)
+       (eq? (cadr (hash-ref infix-operators op)) 'unary)
+       (eq? (caddr (hash-ref infix-operators op)) 'right-left)))
+
 (define-syntax (infix: so)
-  (define (infix-unary-rl expr)
-    (call/cc
-     (lambda (return)
-       (let ((res '()) (tail '()))
-         (set! res
-               (let loop ((head expr))
-                 (if (and (eqv? (infix-get-class (car head)) 'unary)
-                          (eqv? (infix-get-associativity (car head)) 'right-left)
-                          (not (null? (cdr head))))
-                     (cond
-                       ((and (eqv? (infix-get-class (cadr head)) 'unary)
-                             (eqv? (infix-get-associativity (cadr head)) 'right-left))
-                        (when (cdr head)
-                          (cons (car head) (list (loop (cdr head))))))
-                       ((and (not (infix-operator? (cadr head)))
-                             (not (null? (cadr head))))
-                        (cond
-                          ((null? (cddr head))
-                           (set! tail (cddr head))
-                           (list (car head) (cadr head)))
-                          ((eqv? (infix-get-class (caddr head)) 'binary)
-                           (if (>= (infix-get-prioritet (car head))
-                                   (infix-get-prioritet (caddr head)))
-                               (begin (set! tail (cddr head))
-                                      (list (car head) (cadr head)))
-                               (list (car head) (infix-format (cdr head))))) ; error?)))
-                          (else
-                           (return expr))))
-                       (else
-                        (return expr)))
-                     (return expr))))
-         (if (null? tail)
-             (list res)
-             (cons res tail))))))
+  (define (infix-const? s-exp)
+    (memq s-exp '(quote unquote unquote-splicing 
+                        syntax unsyntax unsyntax-splicing)))
   
-  (define (infix-unary-rl-ops  expr)
-    (let loop ((head expr))
-      (cond
-        ((null? head) '())
-        ((and (eqv? (infix-get-class (car head)) 'unary)
-              (eqv? (infix-get-associativity (car head)) 'right-left)
-              (not (null? (cdr head))))
-         (let ((v (infix-unary-rl head)))
-           (if (list? (car v))
-               (cons (car v) (loop (cdr v)))
-               v)))
-        (else
-         (cons (car head) (loop (cdr head)))))))
+  (define (unary-trans s-exp [ops null])
+    (let utrans ([expr s-exp][ops null])
+      (if (not (pair? expr))
+          (error s-exp)
+          (match expr
+            [(list (? infix-oper&unr&rl? op) e1 rest ...)
+             (utrans (cons e1 rest) (cons op ops))]
+            [(list e1 rest ...)
+             (cons (foldl list (infix-trans e1)
+                          (sort ops (lambda(a b) 
+                                      (> (infix-get-prioritet a)
+                                         (infix-get-prioritet b)))))
+                   rest)]))))
   
-  (define (infix-parentheses expr)
-    (let loop ((head expr))
-      (cond
-        ((null? head) '())
-        ((and (list? (car head))
-              (not (null? (car head))))
-         (cons (infix-format (car head)) (loop (cdr head))))
-        (else
-         (cons (car head) (loop (cdr head)))))))
+  (define (infix-trans s-exp)
+    (match s-exp
+      [(list (? infix-oper&unr&rl? op) rest ...)
+       (let ([exp (unary-trans s-exp)])
+         (if (null? (cdr exp))
+             (car exp)
+             (infix-trans exp)))]
+      [(list e (? infix-oper&bin&lr? op1) (? infix-oper&unr&rl? op2) rest ...)
+       (infix-trans `(,e ,op1 . ,(unary-trans (cons op2 rest))))]
+      [(list e1 (? infix-oper&bin&lr? op1) e2 (? infix-oper&bin&lr? op2) e3 ...)
+       (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
+           (infix-trans `((,e1 ,op1 ,e2) ,op2 ,@e3))
+           (infix-trans `(,e1 ,op1 (,e2 ,op2 ,@e3))))]
+      [(list e1 (? infix-oper&bin&lr? op) e2)
+       (list op (infix-trans e1) (infix-trans e2))]
+      [(list (? infix-const? e1) e2)
+       (list e1 e2)]
+      [(list e rest ...)
+       (cons e (map infix-trans rest))]
+      [_
+       s-exp]))
   
-  (define (infix-format expr)
-    (if (or (null? expr)
-            (not (list? expr)))
-        expr
-        (call/cc
-         (lambda (return)
-           (let ((res1 (infix-parentheses expr)))
-             (let loop ((head (infix-unary-rl-ops res1)))
-               (cond
-                 ((null? head)
-                  '())
-                 ((null? (cdr head))
-                  head)
-                 ((>= (length head) 4)
-                  (cond
-                    ((and (not (infix-operator? (car head))) ; 1
-                          (not (infix-operator? (caddr head)))) ; 3
-                     (if (and (eqv? (infix-get-class (cadr head)) 'binary) ; 2
-                              (eqv? (infix-get-class (cadddr head)) 'binary)) ; 4
-                         (if (>= (infix-get-prioritet (cadr head)) (infix-get-prioritet (cadddr head)))
-                             (loop
-                              (cons (list (cadr head) (car head) (caddr head)) (cdddr head)))
-                             (list (cadr head) (car head) (loop (cddr head))))
-                         (return res1)))
-                    (else
-                     (return res1))))
-                 ((= (length head) 3)
-                  (if (and (not (infix-operator? (car head))) ; 1
-                           (eqv? (infix-get-class (cadr head)) 'binary) ; 2
-                           (not (infix-operator? (caddr head))) ; 3
-                           (not (null? (caddr head)))) ; 3
-                      (list (cadr head) (car head) (caddr head))
-                      (return res1)))
-                 (else
-                  (return res1)))))))))
   (syntax-case so (#%test)
     [(_ #%test . rest)
-     #`'#,(infix-format (syntax->datum #'rest))]
+     #`'#,(infix-trans (syntax->datum #'rest))]
     [(_ . rest)
-     (datum->syntax so (infix-format (syntax->datum #'rest)))]))
+     (datum->syntax so (infix-trans (syntax->datum #'rest)))]))
 
 ;>(infix: 6 + (4 * 5 + 8) * 7 + 23)
 ;225
 ;> (infix: #%test (- 1) * (- 3) + 6 or 4 - (3 * 6))
 ;(or (+ (* (- 1) (- 3)) 6) (- 4 (* 3 6)))
+;> (infix: #%test 1 / 12 + 2 * (5 + 6 / 7))
+;'(+ (/ 1 12) (* 2 (+ 5 (/ 6 7))))
+;> (infix: #%test add1 sub1 not x and 5 + 7)
+;'(and (not (add1 (sub1 x))) (+ 5 7))
+;> (infix: #%test 2 * sub1 (x + 2 * 6) / 34)
+;'(/ (* 2 (sub1 (+ x (* 2 6)))) 34)
 ;> (infix: #%test 1 or 4 - 3 * 6)
-;(or 1 (- 4 (* 3 6)))
+;'(or 1 (- 4 (* 3 6)))
 ;> (infix: #%test 2 and 1 * (9 + (5 + 6 - 9) + 5 + 6) or 4 - 3 * 6)
-;(and 2 (or (* 1 (+ (+ (+ 9 (- (+ 5 6) 9)) 5) 6)) (- 4 (* 3 6))))
+;'(and 2 (or (* 1 (+ (+ (+ 9 (- (+ 5 6) 9)) 5) 6)) (- 4 (* 3 6))))
 ;> (infix: #%test 2 and 1 * (+ 9 (5 + 6 - 9) 5 6) or 4 - 3 * 6)
-;(and 2 (or (* 1 (+ 9 (- (+ 5 6) 9) 5 6)) (- 4 (* 3 6))))
+;'(and 2 (or (* 1 (+ 9 (- (+ 5 6) 9) 5 6)) (- 4 (* 3 6))))
 ;> (infix: #%test
 ;        define (fact n)
 ;          (if (n = 0) 1
 ;              (n * (fact (n - 1)))))
-;(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))
+;'(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))
