@@ -1,4 +1,4 @@
-#|
+#| 25.03.2011 14:16
 Summary:
 This file is part of dynamic-racket.
 
@@ -90,7 +90,7 @@ THE SOFTWARE.
           (current-eval dynamic-eval-handler)
           . exprs))]))
 
-(define dynamic-eval-0 
+(define dynamic-eval-0
   (let ([curr-eval (current-eval)])
     (lambda (s-exp)
       (let loop ([pre-exp (curr-eval (dynamic-trans s-exp))])
@@ -99,30 +99,30 @@ THE SOFTWARE.
               pre-exp
               (loop s-exp)))))))
 
-(define (dynamic-eval-1 s-exp 
+(define (dynamic-eval-1 s-exp
                         [namespace (current-namespace)]
                         #:local-macrosymbols [local-macrosymbols null]
                         #:local-macroses [local-macroses null])
   (let loop ([pre-exp (eval (dynamic-trans s-exp
-                                           #:local-macrosymbols local-macrosymbols 
-                                           #:local-macroses local-macroses) 
+                                           #:local-macrosymbols local-macrosymbols
+                                           #:local-macroses local-macroses)
                             namespace)])
     (let ([s-exp (eval (dynamic-trans pre-exp
-                                      #:local-macrosymbols local-macrosymbols 
-                                      #:local-macroses local-macroses) 
+                                      #:local-macrosymbols local-macrosymbols
+                                      #:local-macroses local-macroses)
                        namespace)])
       (if (equal? pre-exp s-exp)
           pre-exp
           (loop s-exp)))))
 
-(define (dynamic-eval s-exp 
+(define (dynamic-eval s-exp
                       [namespace (current-namespace)]
                       #:local-macrosymbols [local-macrosymbols null]
                       #:local-macroses [local-macroses null])
-  (eval (dynamic-eval-1 s-exp 
+  (eval (dynamic-eval-1 s-exp
                         namespace
-                        #:local-macrosymbols local-macrosymbols 
-                        #:local-macroses local-macroses) 
+                        #:local-macrosymbols local-macrosymbols
+                        #:local-macroses local-macroses)
         namespace))
 
 (define dynamic-eval-handler
@@ -135,9 +135,9 @@ THE SOFTWARE.
                        (list? s-exp)
                        (memq (car s-exp)
                              '(#%top-interaction)))
-              (set! form (datum->syntax 
+              (set! form (datum->syntax
                           form
-                          (cons (car s-exp) 
+                          (cons (car s-exp)
                                 (dynamic-eval-0 (cdr s-exp)))
                           form form form)))))
         (curr-eval form)))))
@@ -152,7 +152,7 @@ THE SOFTWARE.
   (or (atom? s-exp)
       (not (list? s-exp))
       (memq (car s-exp)
-            '(quote unquote unquote-splicing 
+            '(quote unquote unquote-splicing
                     syntax unsyntax unsyntax-splicing))))
 
 (define-syntax-rule (un-quasi-exp? s-exp)
@@ -164,10 +164,10 @@ THE SOFTWARE.
 
 
 
-(define (dynamic-trans s-exp 
+(define (dynamic-trans s-exp
                        #:local-macrosymbols [local-macrosymbols null]
                        #:local-macroses [local-macroses null])
-  (letrec ([quasi-trans 
+  (letrec ([quasi-trans
             (lambda(s-exp)
               (letrec ([qlist-trans
                         (lambda (s-exp)
@@ -186,7 +186,7 @@ THE SOFTWARE.
                              `',s-exp]
                             [(un-quasi-exp? s-exp)
                              `(list ',(car s-exp) ,(dynamic-trans (cadr s-exp)
-                                                                  #:local-macrosymbols local-macrosymbols 
+                                                                  #:local-macrosymbols local-macrosymbols
                                                                   #:local-macroses local-macroses))]
                             [else
                              (qlist-trans s-exp)]))])
@@ -204,26 +204,26 @@ THE SOFTWARE.
       [(and (symbol? (car s-exp))
             (assq (car s-exp) local-macroses))
        `((first-class-macros-closure ,(cdr (assq (car s-exp) local-macroses)))
-         ,@(map (lambda(s-exp) 
+         ,@(map (lambda(s-exp)
                   `',s-exp)
                 (cdr s-exp)))]
       [(and/exc (first-class-macros? (eval (car s-exp))))
        `((first-class-macros-closure ,(car s-exp))
-         ,@(map (lambda(s-exp) 
+         ,@(map (lambda(s-exp)
                   `',s-exp)
                 (cdr s-exp)))]
       [else
-       (let ([local-macrosymbols 
+       (let ([local-macrosymbols
               (with-handlers ([(lambda(e)
                                  (and (exn:fail:syntax? e)
-                                      (not (memq (car s-exp) 
+                                      (not (memq (car s-exp)
                                                  '(begin)))))
                                (lambda (e) null)]
                               [void (lambda (e) local-macrosymbols)])
                 (eval (car s-exp))
                 local-macrosymbols)])
-         (cons 'list (map (lambda (s-exp) 
-                            (dynamic-trans s-exp 
+         (cons 'list (map (lambda (s-exp)
+                            (dynamic-trans s-exp
                                            #:local-macrosymbols local-macrosymbols
                                            #:local-macroses local-macroses))
                           s-exp)))])))

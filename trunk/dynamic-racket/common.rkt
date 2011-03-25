@@ -1,4 +1,4 @@
-#|
+#| 25.03.2011 14:16
 Summary:
 This file is part of dynamic-racket.
 
@@ -32,7 +32,7 @@ THE SOFTWARE.
          macrolet
          symbol-macrolet
          macro-apply
-         defun 
+         defun
          incf
          decf)
 
@@ -43,7 +43,7 @@ THE SOFTWARE.
      `(set! ,name
             (first-class-macros
              (lambda ,formals
-               (call/cc 
+               (call/cc
                 (lambda (return)
                   ,expr . ,body))))))))
 
@@ -66,7 +66,7 @@ THE SOFTWARE.
 (defmacro defun (name formals expr . body)
   (eval `(define ,name #f))
   `(set! ,name (lambda ,formals
-                 (call/cc 
+                 (call/cc
                   (lambda (return)
                     ,expr . ,body)))))
 
