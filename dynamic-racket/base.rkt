@@ -1,4 +1,4 @@
-#| 25.03.2011 14:16
+#| 01.04.2011 14:50:09
 Summary:
 This file is part of dynamic-racket.
 
@@ -144,9 +144,10 @@ THE SOFTWARE.
 
 (define-syntax-rule (quasi-exp? s-exp)
   (and (pair? s-exp)
-       (list? s-exp)
        (memq (car s-exp)
-             '(quasiquote quasisyntax))))
+             '(quasiquote quasisyntax))
+       (pair? (cdr s-exp))
+       (null? (cddr s-exp))))
 
 (define-syntax-rule (const-exp? s-exp)
   (or (atom? s-exp)
@@ -157,12 +158,11 @@ THE SOFTWARE.
 
 (define-syntax-rule (un-quasi-exp? s-exp)
   (and (pair? s-exp)
-       (list? s-exp)
        (memq (car s-exp)
              '(unquote unquote-splicing
-                       unsyntax unsyntax-splicing))))
-
-
+                       unsyntax unsyntax-splicing))
+       (pair? (cdr s-exp))
+       (null? (cddr s-exp))))
 
 (define (dynamic-trans s-exp
                        #:local-macrosymbols [local-macrosymbols null]
