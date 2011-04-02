@@ -1,4 +1,4 @@
-#| 01.04.2011 14:50:09
+#| 02.04.2011 16:22:03
 Summary:
 This file is part of dynamic-racket.
 
@@ -66,6 +66,8 @@ THE SOFTWARE.
 
 (define-for-syntax ignore-list
   '(provide for-provide define-for-provide))
+
+(define ignore-list '(module))
 
 (define-for-syntax (ignore? s-exp)
   (and (pair? s-exp)
@@ -154,7 +156,8 @@ THE SOFTWARE.
       (not (list? s-exp))
       (memq (car s-exp)
             '(quote unquote unquote-splicing
-                    syntax unsyntax unsyntax-splicing))))
+                    syntax unsyntax unsyntax-splicing))
+      (memq (car s-exp) ignore-list)))
 
 (define-syntax-rule (un-quasi-exp? s-exp)
   (and (pair? s-exp)

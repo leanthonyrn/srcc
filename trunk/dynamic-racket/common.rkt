@@ -1,4 +1,4 @@
-#| 25.03.2011 14:16
+#| 02.04.2011 16:22:03
 Summary:
 This file is part of dynamic-racket.
 
@@ -26,15 +26,7 @@ THE SOFTWARE.
 
 #lang dynamic-racket/base
 
-(provide defmacro
-         expand/macro
-         expand/macro/trace
-         macrolet
-         symbol-macrolet
-         macro-apply
-         defun
-         incf
-         decf)
+(provide (all-defined-out))
 
 (define-for-provide defmacro
   (first-class-macros
@@ -91,6 +83,21 @@ THE SOFTWARE.
 (defmacro decf (id)
   `(begin (set! ,id (sub1 ,id)) ,id))
 
+(defmacro dynameterize (params . body)
+  (let ([temp-names (map (lambda(p) 
+                           (gensym (car p)))
+                         params)])
+    `(let ,(map (lambda(t p)
+                  `(,t (,(car p))))
+                temp-names
+                params)
+       ,@params
+       ,@body
+       ,@(map (lambda(p t)
+                `(,(car p) ,t))
+              params
+              temp-names))))
+
 (define-for-provide expand/macro)
 (define-for-provide expand/macro/trace)
 (define-for-provide macrolet)
@@ -99,3 +106,4 @@ THE SOFTWARE.
 (define-for-provide macro-apply)
 (define-for-provide incf)
 (define-for-provide decf)
+(define-for-provide dynameterize)
