@@ -1,4 +1,4 @@
-#| 02.04.2011 16:22:03
+#| 03.04.2011 10:21:03
 Summary:
 This file is part of dynamic-racket.
 
@@ -86,17 +86,23 @@ THE SOFTWARE.
 (defmacro dynameterize (params . body)
   (let ([temp-names (map (lambda(p) 
                            (gensym (car p)))
-                         params)])
-    `(let ,(map (lambda(t p)
-                  `(,t (,(car p))))
-                temp-names
-                params)
-       ,@params
-       ,@body
-       ,@(map (lambda(p t)
-                `(,(car p) ,t))
-              params
-              temp-names))))
+                         params)]
+        [result (gensym 'result)])
+    (if (null? params)
+        `(let () . ,body)
+        `(let ,(append
+                (map (lambda(t p)
+                       `(,t (,(car p))))
+                     temp-names
+                     params)
+                `((,result #f)))
+           ,@params
+           (set! ,result (begin . ,body))
+           ,@(map (lambda(p t)
+                    `(,(car p) ,t))
+                  params
+                  temp-names)
+           ,result))))
 
 (define-for-provide expand/macro)
 (define-for-provide expand/macro/trace)
