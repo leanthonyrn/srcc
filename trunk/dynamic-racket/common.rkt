@@ -1,4 +1,4 @@
-#| 03.04.2011 10:21:03
+#| 03.04.2011 15:56:51
 Summary:
 This file is part of dynamic-racket.
 
@@ -22,11 +22,20 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-|#
+|# 
 
 #lang dynamic-racket/base
 
 (provide (all-defined-out))
+
+(define-for-provide smart-lambda
+  (first-class-macros
+   (lambda (formals expr . body)
+     `(letrec ([recurse (lambda ,formals
+                          (call/cc
+                           (lambda (return)
+                             ,expr . ,body)))])
+        recurse))))
 
 (define-for-provide defmacro
   (first-class-macros
@@ -34,10 +43,8 @@ THE SOFTWARE.
      (eval `(define ,name #f))
      `(set! ,name
             (first-class-macros
-             (lambda ,formals
-               (call/cc
-                (lambda (return)
-                  ,expr . ,body))))))))
+             (smart-lambda ,formals
+               ,expr . ,body))))))
 
 (defmacro macrolet (mcrs . body)
   (let ([form (map (lambda(mcr)
