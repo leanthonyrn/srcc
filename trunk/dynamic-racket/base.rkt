@@ -1,4 +1,4 @@
-#| 02.04.2011 16:22:03
+#| 04.04.2011 12:02:09
 Summary:
 This file is part of dynamic-racket.
 
@@ -90,6 +90,7 @@ THE SOFTWARE.
           (define-namespace-anchor anchor)
           (current-namespace (namespace-anchor->namespace anchor))
           (current-eval dynamic-eval-handler)
+          (compile-allow-set!-undefined #t)
           . exprs))]))
 
 (define dynamic-eval-0

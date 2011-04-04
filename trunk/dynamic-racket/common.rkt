@@ -1,4 +1,4 @@
-#| 03.04.2011 15:56:51
+#| 04.04.2011 12:05:36
 Summary:
 This file is part of dynamic-racket.
 
@@ -40,7 +40,6 @@ THE SOFTWARE.
 (define-for-provide defmacro
   (first-class-macros
    (lambda (name formals expr . body)
-     (eval `(define ,name #f))
      `(set! ,name
             (first-class-macros
              (smart-lambda ,formals
@@ -63,7 +62,6 @@ THE SOFTWARE.
                                       #:local-macrosymbols form))))
 
 (defmacro defun (name formals expr . body)
-  (eval `(define ,name #f))
   `(set! ,name (lambda ,formals
                  (call/cc
                   (lambda (return)
