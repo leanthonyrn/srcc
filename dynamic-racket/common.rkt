@@ -1,4 +1,4 @@
-#| 05.04.2011 10:12:40
+#| 05.04.2011 13:35:01
 Summary:
 This file is part of dynamic-racket.
 
@@ -113,6 +113,13 @@ THE SOFTWARE.
                   temp-names)
            ,result))))
 
+(defmacro macrolambda (formals expr . body)
+  (when (classic-eval)
+    (error "macrolambda: set classic-eval parameter to #f"))
+  (eval `(first-class-macros
+          (smart-lambda ,formals
+            ,expr . ,body))))
+
 (define-for-provide expand/macro)
 (define-for-provide expand/macro/trace)
 (define-for-provide macrolet)
@@ -122,3 +129,4 @@ THE SOFTWARE.
 (define-for-provide incf)
 (define-for-provide decf)
 (define-for-provide dynameterize)
+(define-for-provide macrolambda)
