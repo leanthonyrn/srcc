@@ -1,4 +1,4 @@
-#| 02.04.2011 16:22:03
+#| 05.04.2011 11:08:18
 Summary:
 This file is part of dynamic-racket.
 
@@ -36,6 +36,7 @@ THE SOFTWARE.
          for-provide
          define-for-provide
          dynamic-eval-handler
+         classic-eval
          (rename-out [dynamic-context #%module-begin]
                      [dynamic-trans dynamic-transformer]
                      [eval racket-eval]
@@ -44,6 +45,8 @@ THE SOFTWARE.
                      [dynamic-eval-1 eval-1]))
 
 (struct first-class-macros (closure))
+
+(define classic-eval (make-parameter #f))
 
 (define-syntax-rule (atom? s-exp)
   (not (pair? s-exp)))
@@ -95,27 +98,34 @@ THE SOFTWARE.
 (define dynamic-eval-0
   (let ([curr-eval (current-eval)])
     (lambda (s-exp)
-      (let loop ([pre-exp (curr-eval (dynamic-trans s-exp))])
-        (let ([s-exp (curr-eval (dynamic-trans pre-exp))])
-          (if (equal? pre-exp s-exp)
-              pre-exp
-              (loop s-exp)))))))
+      (if (classic-eval)
+          (curr-eval (dynamic-trans s-exp))
+          (let loop ([pre-exp (curr-eval (dynamic-trans s-exp))])
+            (let ([s-exp (curr-eval (dynamic-trans pre-exp))])
+              (if (equal? pre-exp s-exp)
+                  pre-exp
+                  (loop s-exp))))))))
 
 (define (dynamic-eval-1 s-exp
                         [namespace (current-namespace)]
                         #:local-macrosymbols [local-macrosymbols null]
                         #:local-macroses [local-macroses null])
-  (let loop ([pre-exp (eval (dynamic-trans s-exp
-                                           #:local-macrosymbols local-macrosymbols
-                                           #:local-macroses local-macroses)
-                            namespace)])
-    (let ([s-exp (eval (dynamic-trans pre-exp
-                                      #:local-macrosymbols local-macrosymbols
-                                      #:local-macroses local-macroses)
-                       namespace)])
-      (if (equal? pre-exp s-exp)
-          pre-exp
-          (loop s-exp)))))
+  (if (classic-eval)
+      (eval (dynamic-trans s-exp
+                           #:local-macrosymbols local-macrosymbols
+                           #:local-macroses local-macroses)
+            namespace)
+      (let loop ([pre-exp (eval (dynamic-trans s-exp
+                                               #:local-macrosymbols local-macrosymbols
+                                               #:local-macroses local-macroses)
+                                namespace)])
+        (let ([s-exp (eval (dynamic-trans pre-exp
+                                          #:local-macrosymbols local-macrosymbols
+                                          #:local-macroses local-macroses)
+                           namespace)])
+          (if (equal? pre-exp s-exp)
+              pre-exp
+              (loop s-exp))))))
 
 (define (dynamic-eval s-exp
                       [namespace (current-namespace)]
@@ -206,15 +216,32 @@ THE SOFTWARE.
        (quasi-trans s-exp)]
       [(and (symbol? (car s-exp))
             (assq (car s-exp) local-macroses))
-       `((first-class-macros-closure ,(cdr (assq (car s-exp) local-macroses)))
-         ,@(map (lambda(s-exp)
-                  `',s-exp)
-                (cdr s-exp)))]
-      [(and/exc (first-class-macros? (eval (car s-exp))))
-       `((first-class-macros-closure ,(car s-exp))
-         ,@(map (lambda(s-exp)
-                  `',s-exp)
-                (cdr s-exp)))]
+       (let ([form
+              `((first-class-macros-closure ,(cdr (assq (car s-exp) local-macroses)))
+                ,@(map (lambda(s-exp)
+                         `',s-exp)
+                       (cdr s-exp)))])
+         (if (classic-eval)
+             (let loop ([pre-exp (eval form)])
+               (let ([s-exp (eval (dynamic-trans pre-exp))])
+                 (if (equal? pre-exp s-exp)
+                     `',pre-exp
+                     (loop s-exp))))
+             form))]
+      [(and/exc (atom? (car s-exp))
+                (first-class-macros? (eval (car s-exp))))
+       (let ([form
+              `((first-class-macros-closure ,(car s-exp))
+                ,@(map (lambda(s-exp)
+                         `',s-exp)
+                       (cdr s-exp)))])
+         (if (classic-eval)
+             (let loop ([pre-exp (eval form)])
+               (let ([s-exp (eval (dynamic-trans pre-exp))])
+                 (if (equal? pre-exp s-exp)
+                     `',pre-exp
+                     (loop s-exp))))
+             form))]
       [else
        (let ([local-macrosymbols
               (with-handlers ([(lambda(e)
