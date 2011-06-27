@@ -1,5 +1,5 @@
 #|
-The Racket version of Jeff Molofee (NeHe) "OpenGL Tutorials".
+The Racket version of Jeff Molofee's (NeHe) "OpenGL Tutorials".
 Lessons 01-05.
 
 Copyright (c) 2011  Mikhail Mosienko  <netluxe@gmail.com>
@@ -27,11 +27,23 @@ THE SOFTWARE.
 
 (require sgl/gl)
 
+(provide (all-defined-out))
+
+(define lessons-frame%
+  (class frame%
+    (inherit on-exit)
+    (super-new)
+    
+    (define/override (on-traverse-char event)
+      (when (eq? (send event get-key-code)
+                 'escape)
+        (on-exit)))))
+
 (define lesson-1-canvas%
   (class canvas%
     (inherit refresh with-gl-context swap-gl-buffers get-width get-height)
     (super-new [style '(gl no-autoclear)])
-
+    
     (define/override (on-paint)
       (with-gl-context
        (lambda ()
@@ -40,7 +52,7 @@ THE SOFTWARE.
          ; Сброс просмотра
          (glLoadIdentity)
          (swap-gl-buffers))))
-
+    
     (define/override (on-size width height)
       (with-gl-context
        (lambda ()
@@ -58,7 +70,7 @@ THE SOFTWARE.
          (glMatrixMode GL_MODELVIEW)
          (glLoadIdentity)))
       (refresh))
-
+    
     (define (gl-init width height)
       (with-gl-context
        (lambda ()
@@ -81,14 +93,14 @@ THE SOFTWARE.
          ; Выбор матрицы просмотра модели
          (glMatrixMode GL_MODELVIEW)
          (glLoadIdentity))))
-
+    
     (gl-init (get-width) (get-height))))
 
 (define lesson-2-canvas%
   (class lesson-1-canvas%
     (inherit with-gl-context swap-gl-buffers)
     (super-new)
-
+    
     (define/override (on-paint)
       (with-gl-context
        (lambda ()
@@ -119,7 +131,7 @@ THE SOFTWARE.
   (class lesson-1-canvas%
     (inherit with-gl-context swap-gl-buffers)
     (super-new)
-
+    
     (define/override (on-paint)
       (with-gl-context
        (lambda ()
@@ -154,15 +166,12 @@ THE SOFTWARE.
 (define lesson-4-canvas%
   (class lesson-1-canvas%
     (inherit refresh with-gl-context swap-gl-buffers)
-
+    
     (field [rtri 0.0]   ; Угол вращения треугольника
            [rquad 0.0]) ; Угол вращения четырехугольника
-
-    (init-field [rtri-offset 2.0]   ; Смещение угола вращения треугольника
-                [rquad-offset -4.0]) ; Смещение угола вращения четырехугольника
-
+    
     (super-new)
-
+    
     (define/override (on-paint)
       (with-gl-context
        (lambda ()
@@ -195,23 +204,15 @@ THE SOFTWARE.
            (glVertex3f  1.0 -1.0 0.0)  ; Нижняя левая
            (glVertex3f -1.0 -1.0 0.0)) ; Нижняя правая
          (glEnd)
-         (swap-gl-buffers))))
-
-    (letrec ([f (lambda()
-                  (sleep 0.1)
-                  (set! rtri (+ rtri rtri-offset))    ; Изменение угла вращения для треугольника
-                  (set! rquad (+ rquad rquad-offset)) ; Изменение угла вращения для квадрата
-                  (refresh)
-                  (f))])
-      (thread f))))
+         (swap-gl-buffers))))))
 
 (define lesson-5-canvas%
   (class lesson-4-canvas%
     (inherit refresh with-gl-context swap-gl-buffers)
     (inherit-field rtri rquad)
-
+    
     (super-new)
-
+    
     (define/override (on-paint)
       (with-gl-context
        (lambda ()
@@ -231,21 +232,21 @@ THE SOFTWARE.
            (glVertex3f -1.0 -1.0 1.0) ; Левая точка
            (glColor3f   0.0  0.0 1.0) ; Синий
            (glVertex3f  1.0 -1.0 1.0) ; Правая точка
-
+           
            (glColor3f  1.0  0.0  0.0) ; Красная
            (glVertex3f 0.0  1.0  0.0) ; Верх треугольника (Правая грань)
            (glColor3f  0.0  0.0  1.0) ; Синия
            (glVertex3f 1.0 -1.0  1.0) ; Лево треугольника (Правая грань)
            (glColor3f  0.0  1.0  0.0) ; Зеленная
            (glVertex3f 1.0 -1.0 -1.0) ; Право треугольника (Правая грань)
-
+           
            (glColor3f   1.0  0.0  0.0) ; Красный
            (glVertex3f  0.0  1.0  0.0) ; Низ треугольника (Сзади)
            (glColor3f   0.0  1.0  0.0) ; Зеленный
            (glVertex3f  1.0 -1.0 -1.0) ; Лево треугольника (Сзади)
            (glColor3f   0.0  0.0  1.0) ; Синий
            (glVertex3f -1.0 -1.0 -1.0) ; Право треугольника (Сзади)
-
+           
            (glColor3f   1.0  0.0  0.0) ; Красный
            (glVertex3f  0.0  1.0  0.0) ; Верх треугольника (Лево)
            (glColor3f   0.0  0.0  1.0) ; Синий
@@ -264,31 +265,31 @@ THE SOFTWARE.
            (glVertex3f -1.0 1.0 -1.0) ; Лево верх
            (glVertex3f -1.0 1.0  1.0) ; Лево низ
            (glVertex3f  1.0 1.0  1.0) ; Право низ
-
+           
            (glColor3f   1.0  0.5  0.0) ; Оранжевый
            (glVertex3f  1.0 -1.0  1.0) ; Верх право квадрата (Низ)
            (glVertex3f -1.0 -1.0  1.0) ; Верх лево
            (glVertex3f -1.0 -1.0 -1.0) ; Низ лево
            (glVertex3f  1.0 -1.0 -1.0) ; Низ право
-
+           
            (glColor3f   1.0  0.0 0.0) ; Красный
            (glVertex3f  1.0  1.0 1.0) ; Верх право квадрата (Перед)
            (glVertex3f -1.0  1.0 1.0) ; Верх лево
            (glVertex3f -1.0 -1.0 1.0) ; Низ лево
            (glVertex3f  1.0 -1.0 1.0) ; Низ право
-
+           
            (glColor3f   1.0  1.0  0.0) ; Желтый
            (glVertex3f  1.0 -1.0 -1.0) ; Верх право квадрата (Зад)
            (glVertex3f -1.0 -1.0 -1.0) ; Верх лево
            (glVertex3f -1.0  1.0 -1.0) ; Низ лево
            (glVertex3f  1.0  1.0 -1.0) ; Низ право
-
+           
            (glColor3f   0.0  0.0  1.0) ; Синий
            (glVertex3f -1.0  1.0  1.0) ; Верх право квадрата (Лево)
            (glVertex3f -1.0  1.0 -1.0) ; Верх лево
            (glVertex3f -1.0 -1.0 -1.0) ; Низ лево
            (glVertex3f -1.0 -1.0  1.0) ; Низ право
-
+           
            (glColor3f  1.0  0.0  1.0) ; Фиолетовый
            (glVertex3f 1.0  1.0 -1.0) ; Верх право квадрата (Право)
            (glVertex3f 1.0  1.0  1.0) ; Верх лево
@@ -301,13 +302,81 @@ THE SOFTWARE.
 ;
 ;                   TEST
 ;
-(define-syntax-rule (run-lesson banner lesson-canvas)
-  (let ([frame (new frame%
-                    [label banner]
-                    [width 600]
+(define (lesson-1)
+  (let ([frame (new lessons-frame%
+                    [label "Lesson 1."]
+                    [width 400]
                     [height 400])])
-    (new lesson-canvas
+    (new lesson-1-canvas%
          [parent frame])
     (send frame show #t)))
 
-(run-lesson "Lesson 5." lesson-5-canvas%)
+(define (lesson-2)
+  (let ([frame (new lessons-frame%
+                    [label "Lesson 2."]
+                    [width 400]
+                    [height 400])])
+    (new lesson-2-canvas%
+         [parent frame])
+    (send frame show #t)))
+
+(define (lesson-3)
+  (let ([frame (new lessons-frame%
+                    [label "Lesson 3."]
+                    [width 400]
+                    [height 400])])
+    (new lesson-3-canvas%
+         [parent frame])
+    (send frame show #t)))
+
+(define (lesson-4)
+  (let ([frame (new lessons-frame%
+                    [label "Lesson 4."]
+                    [width 400]
+                    [height 400])]
+        [rtri-offset 2.0]   ; Смещение угола вращения треугольника
+        [rquad-offset -4.0]) ; Смещение угола вращения четырехугольника
+    (send frame show #t)
+    (letrec ([canvas (new lesson-4-canvas% [parent frame])]
+             [get-angle (lambda (angle)
+                          (cond
+                            [(angle . >= . 360) (- angle 360)]
+                            [(angle . <= . -360) (+ angle 360)]
+                            [else angle]))]
+             [loop (lambda()
+                     (sleep 0.1)
+                     ; Изменение угла вращения для треугольника
+                     (set-field! rtri canvas (get-angle (+ (get-field rtri canvas) rtri-offset)))
+                     ; Изменение угла вращения для квадрата
+                     (set-field! rquad canvas (get-angle (+ (get-field rquad canvas) rquad-offset)))
+                     (send canvas refresh)
+                     (when (send frame is-shown?)
+                       (loop)))])
+      (thread loop)
+      (void))))
+
+(define (lesson-5)
+  (let ([frame (new lessons-frame%
+                    [label "Lesson 5."]
+                    [width 600]
+                    [height 400])]
+        [rtri-offset 2.0]   ; Смещение угола вращения треугольника
+        [rquad-offset -4.0]) ; Смещение угола вращения четырехугольника
+    (send frame show #t)
+    (letrec ([canvas (new lesson-5-canvas% [parent frame])]
+             [get-angle (lambda (angle)
+                          (cond
+                            [(angle . >= . 360) (- angle 360)]
+                            [(angle . <= . -360) (+ angle 360)]
+                            [else angle]))]
+             [loop (lambda()
+                     (sleep 0.1)
+                     ; Изменение угла вращения для треугольника
+                     (set-field! rtri canvas (get-angle (+ (get-field rtri canvas) rtri-offset)))
+                     ; Изменение угла вращения для квадрата
+                     (set-field! rquad canvas (get-angle (+ (get-field rquad canvas) rquad-offset)))
+                     (send canvas refresh)
+                     (when (send frame is-shown?)
+                       (loop)))])
+      (thread loop)
+      (void))))
