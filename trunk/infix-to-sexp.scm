@@ -113,7 +113,7 @@ THE SOFTWARE.
       [(list (? infix-const? e1) e2)
        (list e1 e2)]
       [(list e rest ...)
-       (cons e (map infix-trans rest))]
+       (map infix-trans (cons e rest))]
       [_
        s-exp]))
   
