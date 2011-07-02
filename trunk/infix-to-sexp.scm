@@ -91,17 +91,16 @@ THE SOFTWARE.
              (utrans (cons e1 rest) (cons op ops))]
             ;; new 
             [(list (? token? fn) (? list? args) rest ...)
-             (cons (foldl list `(#%infix:fn ,fn ,@args)
-                          (sort ops (lambda(a b) 
-                                      (> (infix-get-prioritet a)
-                                         (infix-get-prioritet b)))))
+             (cons `(#%infix:ok ,(foldl list (trans-fn fn args)
+                                        (sort ops (lambda(a b) 
+                                                    (> (infix-get-prioritet a)
+                                                       (infix-get-prioritet b))))))
                    rest)]
-            
             [(list e1 rest ...)
-             (cons (foldl list (infix-trans e1)
-                          (sort ops (lambda(a b) 
-                                      (> (infix-get-prioritet a)
-                                         (infix-get-prioritet b)))))
+             (cons `(#%infix:ok ,(foldl list (infix-trans e1)
+                                        (sort ops (lambda(a b) 
+                                                    (> (infix-get-prioritet a)
+                                                       (infix-get-prioritet b))))))
                    rest)]))))
   
   (define (token? op)
@@ -116,17 +115,20 @@ THE SOFTWARE.
            trans-sexp
            (list op2 (list op1 e1 e2) e3))]))
   
+  (define (trans-fn name args)
+    (cons name (map infix-trans args)))
+  
   (define (infix-trans s-exp)
     (match s-exp
       [(? token? id)
        id]
       [(list (? infix-const? e1) e2)
        s-exp]
-      [(list '#%infix:fn fn args ...)
-       (cons fn (map infix-trans args))]
+      [(list '#%infix:ok e)
+       e]
       ;; new
       [(list (? token? fn) (? list? args))
-       (cons fn (map infix-trans args))]
+       (trans-fn fn args)]
       [(list (? not-infix-operator? e1) 
              (? infix-oper&bin&lr? op) 
              (? not-infix-operator? e2))
@@ -136,7 +138,7 @@ THE SOFTWARE.
              (? infix-oper&bin&lr? op) 
              (? not-infix-operator? e2))
        (list op 
-             (cons fn (map infix-trans args)) 
+             (trans-fn fn args) 
              (infix-trans e2))]
       ;; new
       [(list (? not-infix-operator? e1) 
@@ -144,13 +146,13 @@ THE SOFTWARE.
              (? token? fn) (? list? args))
        (list op 
              (infix-trans e1) 
-             (cons fn (map infix-trans args)))]
+             (trans-fn fn args))]
       [(list (? infix-oper&unr&rl? op) 
              rest ...)
        (let ([exp (unary-trans s-exp)])
-         (if (null? (cdr exp))
-             (car exp)
-             (infix-trans exp)))]
+         (infix-trans (if (null? (cdr exp))
+                          (car exp)
+                          exp)))]
       [(list (? not-infix-operator? e) 
              (? infix-oper&bin&lr? op1) 
              (? infix-oper&unr&rl? op2) rest ...)
@@ -159,7 +161,7 @@ THE SOFTWARE.
       [(list (? token? fn) (? list? args)
              (? infix-oper&bin&lr? op1) 
              (? infix-oper&unr&rl? op2) rest ...)
-       (infix-trans `((#%infix:fn ,fn ,@args) ,op1 . ,(unary-trans (cons op2 rest))))]
+       (infix-trans `((#%infix:ok ,(trans-fn fn args)) ,op1 . ,(unary-trans (cons op2 rest))))]
       [(list (? not-infix-operator? e1) 
              (? infix-oper&bin&lr? op1) 
              (? not-infix-operator? e2)
@@ -174,8 +176,8 @@ THE SOFTWARE.
              (? not-infix-operator? e2)
              (? infix-oper&bin&lr? op2) e3 ...)
        (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
-           (infix-trans `(((#%infix:fn ,fn ,@args) ,op1 ,e2) ,op2 ,@e3))
-           (check-ops `(,op1 ,(cons fn (map infix-trans args))
+           (infix-trans `(((#%infix:ok ,(trans-fn fn args)) ,op1 ,e2) ,op2 ,@e3))
+           (check-ops `(,op1 ,(trans-fn fn args)
                              ,(infix-trans `(,e2 ,op2 ,@e3)))))]
       ;; new 
       [(list (? not-infix-operator? e1) 
@@ -183,9 +185,9 @@ THE SOFTWARE.
              (? token? fn) (? list? args)
              (? infix-oper&bin&lr? op2) e3 ...)
        (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
-           (infix-trans `((,e1 ,op1 (#%infix:fn ,fn ,@args)) ,op2 ,@e3))
+           (infix-trans `((,e1 ,op1 (#%infix:ok ,(trans-fn fn args))) ,op2 ,@e3))
            (check-ops `(,op1 ,(infix-trans e1)
-                             ,(infix-trans `((#%infix:fn ,fn ,@args) ,op2 ,@e3)))))]
+                             ,(infix-trans `((#%infix:ok ,(trans-fn fn args)) ,op2 ,@e3)))))]
       [_ 
        (raise-syntax-error '|infix: | "Please check syntax" s-exp)]))
   
@@ -221,4 +223,3 @@ THE SOFTWARE.
 ;'(> (+ 1 (* 2 (- (- 3)))) (- 4))
 ;> (infix: #%test - x() + 78 * - - f([5 + 6]) < 8 * 90)
 ;'(< (+ (- (x)) (* 78 (- (- (f (+ 5 6)))))) (* 8 90))
-
