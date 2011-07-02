@@ -113,7 +113,12 @@ THE SOFTWARE.
        (if (>= (infix-get-prioritet op2)
                (infix-get-prioritet op1))
            trans-sexp
-           (list op2 (list op1 e1 e2) e3))]))
+           (list op2 (check-ops (list op1 e1 e2)) e3))]
+      [(list op1 (list op2 e1 e2) e3)
+       (if (>= (infix-get-prioritet op2)
+               (infix-get-prioritet op1))
+           trans-sexp
+           (list op2 (check-ops (list op1 e1 e3)) e2))]))
   
   (define (trans-fn name args)
     (cons name (map infix-trans args)))
@@ -168,8 +173,8 @@ THE SOFTWARE.
              (? infix-oper&bin&lr? op2) e3 ...)
        (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
            (infix-trans `((,e1 ,op1 ,e2) ,op2 ,@e3))
-           (check-ops `(,op1 ,(infix-trans e1)
-                             ,(infix-trans `(,e2 ,op2 ,@e3)))))]
+           `(,op1 ,(infix-trans e1)
+                  ,(infix-trans `(,e2 ,op2 ,@e3))))]
       ;; new 
       [(list (? token? fn) (? list? args) 
              (? infix-oper&bin&lr? op1) 
@@ -177,8 +182,8 @@ THE SOFTWARE.
              (? infix-oper&bin&lr? op2) e3 ...)
        (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
            (infix-trans `(((#%infix:ok ,(trans-fn fn args)) ,op1 ,e2) ,op2 ,@e3))
-           (check-ops `(,op1 ,(trans-fn fn args)
-                             ,(infix-trans `(,e2 ,op2 ,@e3)))))]
+           `(,op1 ,(trans-fn fn args)
+                  ,(infix-trans `(,e2 ,op2 ,@e3))))]
       ;; new 
       [(list (? not-infix-operator? e1) 
              (? infix-oper&bin&lr? op1) 
@@ -186,16 +191,16 @@ THE SOFTWARE.
              (? infix-oper&bin&lr? op2) e3 ...)
        (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
            (infix-trans `((,e1 ,op1 (#%infix:ok ,(trans-fn fn args))) ,op2 ,@e3))
-           (check-ops `(,op1 ,(infix-trans e1)
-                             ,(infix-trans `((#%infix:ok ,(trans-fn fn args)) ,op2 ,@e3)))))]
+           `(,op1 ,(infix-trans e1)
+                  ,(infix-trans `((#%infix:ok ,(trans-fn fn args)) ,op2 ,@e3))))]
       [_ 
        (raise-syntax-error '|infix: | "Please check syntax" s-exp)]))
   
   (syntax-case so (#%test)
     [(_ #%test . rest)
-     #`'#,(infix-trans (syntax->datum #'rest))]
+     #`'#,(check-ops (infix-trans (syntax->datum #'rest)))]
     [(_ . rest)
-     (datum->syntax so (infix-trans (syntax->datum #'rest)))]))
+     (datum->syntax so (check-ops (infix-trans (syntax->datum #'rest))))]))
 
 ;>(infix: 6 + (4 * 5 + 8) * 7 + 23)
 ;225
