@@ -89,7 +89,6 @@ THE SOFTWARE.
           (match expr
             [(list (? infix-oper&unr&rl? op) e1 rest ...)
              (utrans (cons e1 rest) (cons op ops))]
-            ;; new
             [(list (? token? fn) (? list? args) rest ...)
              (cons `(#%lisp ,(foldl list (trans-fn fn args)
                                     (sort ops (lambda(a b)
@@ -151,6 +150,10 @@ THE SOFTWARE.
               (genres (trans/i e))]
              [(list (? token? fn) (? list? args))
               (genres (trans-fn fn args))]
+             [(list test r1 ... '? then r2 ... ': else r3 ...)
+              `(if ,(trans/i (cons test r1))
+                   ,(trans/i (cons then r2))
+                   ,(trans/i (cons else r3)))]
              [(list (? not-infix-operator? e)
                     (? infix-oper&bin&lr? op)
                     rest ...)
@@ -194,3 +197,7 @@ THE SOFTWARE.
 ;'(> (+ 1 (* 2 (- (- 3)))) (- 4))
 ;> (infix: #%test - x() + 78 * - - f([5 + 6]) < 8 * 90)
 ;'(< (+ (- (x)) (* 78 (- (- (f (+ 5 6)))))) (* 8 90))
+;> (infix: #%test [ 4 > 5 ? 5 * - - f(): 6 + 8 * 9])
+;'(if (> 4 5) (* 5 (- (- (f)))) (+ 6 (* 8 9)))
+;> (infix: #%test 23 + [ 4 > 5 ? 5 * - - f() : 6 + 8 * 9] > 7)
+;'(> (+ 23 (if (> 4 5) (* 5 (- (- (f)))) (+ 6 (* 8 9)))) 7)
