@@ -1,5 +1,5 @@
 #|
-Infix->S-expression v0.6
+Infix->S-expression v0.7
 
 Copyright (c) 2010-2011  Mikhail Mosienko  <netluxe@gmail.com>
 
@@ -24,7 +24,7 @@ THE SOFTWARE.
 
 #lang racket/base
 
-(require (for-syntax racket/base racket/match))
+(require (for-syntax racket/base racket/match) racket/list)
 (provide infix:)
 
 (define-syntax-rule (<> a b) (not (= a b)))
@@ -79,7 +79,7 @@ THE SOFTWARE.
 
 (define-syntax (infix: so)
   (define (infix-const? s-exp)
-    (memq s-exp '(quote unquote unquote-splicing 
+    (memq s-exp '(quote unquote unquote-splicing
                         syntax unsyntax unsyntax-splicing)))
   
   (define (unary-trans s-exp [ops null])
@@ -89,118 +89,92 @@ THE SOFTWARE.
           (match expr
             [(list (? infix-oper&unr&rl? op) e1 rest ...)
              (utrans (cons e1 rest) (cons op ops))]
-            ;; new 
+            ;; new
             [(list (? token? fn) (? list? args) rest ...)
-             (cons `(#%infix:ok ,(foldl list (trans-fn fn args)
-                                        (sort ops (lambda(a b) 
-                                                    (> (infix-get-prioritet a)
-                                                       (infix-get-prioritet b))))))
+             (cons `(#%lisp ,(foldl list (trans-fn fn args)
+                                    (sort ops (lambda(a b)
+                                                (> (infix-get-prioritet a)
+                                                   (infix-get-prioritet b))))))
                    rest)]
             [(list e1 rest ...)
-             (cons `(#%infix:ok ,(foldl list (infix-trans e1)
-                                        (sort ops (lambda(a b) 
-                                                    (> (infix-get-prioritet a)
-                                                       (infix-get-prioritet b))))))
+             (cons `(#%lisp ,(foldl list (trans/i e1)
+                                    (sort ops (lambda(a b)
+                                                (> (infix-get-prioritet a)
+                                                   (infix-get-prioritet b))))))
                    rest)]))))
   
   (define (token? op)
     (not (or (pair? op)
              (infix-operator? op))))
   
-  (define (check-ops trans-sexp)
-    (match trans-sexp
-      [(list op1 e1 (list op2 e2 e3))
-       (if (>= (infix-get-prioritet op2)
-               (infix-get-prioritet op1))
-           trans-sexp
-           (list op2 (check-ops (list op1 e1 e2)) e3))]
-      [(list op1 (list op2 e1 e2) e3)
-       (if (>= (infix-get-prioritet op2)
-               (infix-get-prioritet op1))
-           trans-sexp
-           (list op2 (check-ops (list op1 e1 e3)) e2))]))
-  
   (define (trans-fn name args)
-    (cons name (map infix-trans args)))
+    (cons name (map trans/i args)))
   
-  (define (infix-trans s-exp)
-    (match s-exp
+  (define (trans/i iexp)
+    (match iexp
       [(? token? id)
        id]
       [(list (? infix-const? e1) e2)
-       s-exp]
-      [(list '#%infix:ok e)
+       iexp]
+      [(list '#%lisp e)
        e]
-      ;; new
-      [(list (? token? fn) (? list? args))
-       (trans-fn fn args)]
-      [(list (? not-infix-operator? e1) 
-             (? infix-oper&bin&lr? op) 
-             (? not-infix-operator? e2))
-       (list op (infix-trans e1) (infix-trans e2))]
-      ;; new
-      [(list (? token? fn) (? list? args) 
-             (? infix-oper&bin&lr? op) 
-             (? not-infix-operator? e2))
-       (list op 
-             (trans-fn fn args) 
-             (infix-trans e2))]
-      ;; new
-      [(list (? not-infix-operator? e1) 
-             (? infix-oper&bin&lr? op) 
-             (? token? fn) (? list? args))
-       (list op 
-             (infix-trans e1) 
-             (trans-fn fn args))]
-      [(list (? infix-oper&unr&rl? op) 
-             rest ...)
-       (let ([exp (unary-trans s-exp)])
-         (infix-trans (if (null? (cdr exp))
+      [_
+       (let* ([res null]
+              [ops null]
+              [check
+               (lambda (op exp)
+                 (set! res (cons exp res))
+                 (do ()[(or (null? ops)
+                            (< (infix-get-prioritet (car ops))
+                               (infix-get-prioritet op)))]
+                   (set! res
+                         (cons (list (car ops) (cadr res) (car res))
+                               (cddr res)))
+                   (set! ops (cdr ops)))
+                 (set! ops (cons op ops)))]
+              [genres
+               (lambda (exp)
+                 (set! res (cons exp res))
+                 (let loop ([opers ops])
+                   (if (null? opers)
+                       (car res)
+                       (begin
+                         (set! res
+                               (cons (list (car opers) (cadr res) (car res))
+                                     (cddr res)))
+                         (loop (cdr opers))))))])
+         (let next ([exp iexp])
+           (match exp
+             [(list '#%lisp e)
+              (genres e)]
+             [(list (? not-infix-operator? e))
+              (genres (trans/i e))]
+             [(list (? token? fn) (? list? args))
+              (genres (trans-fn fn args))]
+             [(list (? not-infix-operator? e)
+                    (? infix-oper&bin&lr? op)
+                    rest ...)
+              (check op (trans/i e))
+              (next (cddr exp))]
+             [(list (? token? fn) (? list? args)
+                    (? infix-oper&bin&lr? op)
+                    rest ...)
+              (check op (trans-fn fn args))
+              (next (cdddr exp))]
+             [(list (? infix-oper&unr&rl? op)
+                    rest ...)
+              (let ([exp (unary-trans exp)])
+                (next (if (null? (cdr exp))
                           (car exp)
                           exp)))]
-      [(list (? not-infix-operator? e) 
-             (? infix-oper&bin&lr? op1) 
-             (? infix-oper&unr&rl? op2) rest ...)
-       (infix-trans `(,e ,op1 . ,(unary-trans (cons op2 rest))))]
-      ;; new
-      [(list (? token? fn) (? list? args)
-             (? infix-oper&bin&lr? op1) 
-             (? infix-oper&unr&rl? op2) rest ...)
-       (infix-trans `((#%infix:ok ,(trans-fn fn args)) ,op1 . ,(unary-trans (cons op2 rest))))]
-      [(list (? not-infix-operator? e1) 
-             (? infix-oper&bin&lr? op1) 
-             (? not-infix-operator? e2)
-             (? infix-oper&bin&lr? op2) e3 ...)
-       (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
-           (infix-trans `((,e1 ,op1 ,e2) ,op2 ,@e3))
-           `(,op1 ,(infix-trans e1)
-                  ,(infix-trans `(,e2 ,op2 ,@e3))))]
-      ;; new 
-      [(list (? token? fn) (? list? args) 
-             (? infix-oper&bin&lr? op1) 
-             (? not-infix-operator? e2)
-             (? infix-oper&bin&lr? op2) e3 ...)
-       (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
-           (infix-trans `(((#%infix:ok ,(trans-fn fn args)) ,op1 ,e2) ,op2 ,@e3))
-           `(,op1 ,(trans-fn fn args)
-                  ,(infix-trans `(,e2 ,op2 ,@e3))))]
-      ;; new 
-      [(list (? not-infix-operator? e1) 
-             (? infix-oper&bin&lr? op1) 
-             (? token? fn) (? list? args)
-             (? infix-oper&bin&lr? op2) e3 ...)
-       (if ((infix-get-prioritet op1). >= .(infix-get-prioritet op2))
-           (infix-trans `((,e1 ,op1 (#%infix:ok ,(trans-fn fn args))) ,op2 ,@e3))
-           `(,op1 ,(infix-trans e1)
-                  ,(infix-trans `((#%infix:ok ,(trans-fn fn args)) ,op2 ,@e3))))]
-      [_ 
-       (raise-syntax-error '|infix: | "Please check syntax" s-exp)]))
+             [_
+              (raise-syntax-error '|infix: | "Please check syntax" iexp)])))]))
   
   (syntax-case so (#%test)
     [(_ #%test . rest)
-     #`'#,(check-ops (infix-trans (syntax->datum #'rest)))]
+     #`'#,(trans/i (syntax->datum #'rest))]
     [(_ . rest)
-     (datum->syntax so (check-ops (infix-trans (syntax->datum #'rest))))]))
+     (datum->syntax so (trans/i (syntax->datum #'rest)))]))
 
 ;>(infix: 6 + (4 * 5 + 8) * 7 + 23)
 ;225
@@ -215,15 +189,7 @@ THE SOFTWARE.
 ;> (infix: #%test 1 or 4 - 3 * 6)
 ;'(or 1 (- 4 (* 3 6)))
 ;> (infix: #%test 2 and 1 * (9 + (5 + 6 - 9) + 5 + 6) or 4 - 3 * 6)
-;'(and 2 (or (* 1 (+ (+ (+ 9 (- (+ 5 6) 9)) 5) 6)) (- 4 (* 3 6))))
-;> (infix: #%test 2 and 1 * (+ 9 (5 + 6 - 9) 5 6) or 4 - 3 * 6)
-;'(and 2 (or (* 1 (+ 9 (- (+ 5 6) 9) 5 6)) (- 4 (* 3 6))))
-;;; Don't use it!
-;;;> (infix: #%test
-;;;        define (fact n)
-;;;          (if (n = 0) 1
-;;;              (n * (fact (n - 1)))))
-;;;'(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))
+;'(or (and 2 (* 1 (+ (+ (+ 9 (- (+ 5 6) 9)) 5) 6))) (- 4 (* 3 6)))
 ;> (infix: #%test 1 + 2 * - (- 3) > - 4)
 ;'(> (+ 1 (* 2 (- (- 3)))) (- 4))
 ;> (infix: #%test - x() + 78 * - - f([5 + 6]) < 8 * 90)
