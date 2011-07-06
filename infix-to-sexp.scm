@@ -122,8 +122,8 @@ THE SOFTWARE.
       (if (not (pair? expr))
           (error s-exp)
           (match expr
-            [(list (? infix-oper&unr&rl? op) e1 rest ...)
-             (utrans (cons e1 rest) (cons op ops))]
+            [(list (? infix-oper&unr&rl? op) e rest ...)
+             (utrans (cons e rest) (cons op ops))]
             [(list (? token-id? fn) (? list? args) rest ...)
              (cons (%lisp (foldl list (trans-fn fn args)
                                  (map %id-syntax
@@ -131,13 +131,15 @@ THE SOFTWARE.
                                                   (> (infix-get-prioritet a)
                                                      (infix-get-prioritet b)))))))
                    rest)]
-            [(list e1 rest ...)
-             (cons (%lisp (foldl list (trans/i e1)
+            [(list (? not-infix-operator? e) rest ...)
+             (cons (%lisp (foldl list (trans/i e)
                                  (map %id-syntax
                                       (sort ops (lambda(a b)
                                                   (> (infix-get-prioritet a)
                                                      (infix-get-prioritet b)))))))
-                   rest)]))))
+                   rest)]
+            [_ 
+             (raise-syntax-error 'infix "Syntax error" s-exp)]))))
   
   (define (token-id? tkn)
     (and (%id? tkn)
