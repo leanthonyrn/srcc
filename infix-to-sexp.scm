@@ -1,5 +1,5 @@
 #|
-Infix->S-expression v0.8
+Infix->S-expression v0.9
 
 Copyright (c) 2010-2011  Mikhail Mosienko  <netluxe@gmail.com>
 
@@ -24,7 +24,7 @@ THE SOFTWARE.
 
 #lang racket/base
 
-(require (for-syntax racket/base 
+(require (for-syntax racket/base
                      racket/match))
 (provide infix: <> (for-syntax infix-operators))
 
@@ -51,57 +51,69 @@ THE SOFTWARE.
 
 (define-syntax (infix: so)
   
-  (define (stx-pair? p)
-    (and (syntax? p)
-         (pair? (syntax-e p))))
+  (struct %id [symbol syntax])
+  (struct %lisp [source])
   
-  (define (stx-list? p)
-    (and (syntax? p)
-         (list? (syntax-e p))))
+  (define special-symbols '(? :))
+  
+  (define (token-list slst)
+    (let ([val (syntax-e slst)])
+      (cond
+        [(pair? val)
+         (if (list? val)
+             (if (infix-const? (car val))
+                 (%lisp slst)
+                 (map token-list val))
+             (raise-syntax-error 'infix "Syntax error" slst))]
+        [(and (symbol? val)
+              (not (memq val special-symbols)))
+         (%id val slst)]
+        [else
+         val])))
   
   (define (infix-operator? op)
-    (and (syntax? op)
-         (hash-ref infix-operators (syntax->datum op) #f)))
+    (and (%id? op)
+         (hash-ref infix-operators (%id-symbol op) #f)))
   
   (define (not-infix-operator? op)
     (not (infix-operator? op)))
   
   (define (infix-get-prioritet op)
-    (and (syntax? op)
-         (let ([op (syntax->datum op)])
+    (and (%id? op)
+         (let ([op (%id-symbol op)])
            (and (hash-ref infix-operators op #f)
                 (car (hash-ref infix-operators op))))))
   
   (define (infix-get-class op)
-    (and (syntax? op)
-         (let ([op (syntax->datum op)])
+    (and (%id? op)
+         (let ([op (%id-symbol op)])
            (and (hash-ref infix-operators op #f)
                 (cadr (hash-ref infix-operators op))))))
   
   (define (infix-get-associativity  op)
-    (and (syntax? op)
-         (let ([op (syntax->datum op)])
+    (and (%id? op)
+         (let ([op (%id-symbol op)])
            (and (hash-ref infix-operators op #f)
                 (caddr (hash-ref infix-operators op))))))
   
   (define (infix-oper&bin&lr? op)
-    (and (syntax? op)
-         (let ([op (syntax->datum op)])
+    (and (%id? op)
+         (let ([op (%id-symbol op)])
            (and (hash-ref infix-operators op #f)
                 (memq (cadr (hash-ref infix-operators op)) '(binary bin-spec))
                 (eq? (caddr (hash-ref infix-operators op)) 'left-right)))))
   
   (define (infix-oper&unr&rl? op)
-    (and (syntax? op)
-         (let ([op (syntax->datum op)])
+    (and (%id? op)
+         (let ([op (%id-symbol op)])
            (and (hash-ref infix-operators op #f)
                 (or (and (eq? (cadr (hash-ref infix-operators op)) 'unary)
                          (eq? (caddr (hash-ref infix-operators op)) 'right-left))
                     (eq? (cadr (hash-ref infix-operators op)) 'bin-spec))))))
   
   (define (infix-const? s-exp)
-    (and (syntax? s-exp)
-         (memq (syntax->datum s-exp)
+    (and (identifier? s-exp)
+         (memq (syntax-e s-exp)
                '(quote unquote unquote-splicing
                        syntax unsyntax unsyntax-splicing))))
   
@@ -112,41 +124,42 @@ THE SOFTWARE.
           (match expr
             [(list (? infix-oper&unr&rl? op) e1 rest ...)
              (utrans (cons e1 rest) (cons op ops))]
-            [(list (? token? fn) (? stx-list? args) rest ...)
-             (cons `(#%lisp ,(foldl list (trans-fn fn args)
-                                    (sort ops (lambda(a b)
-                                                (> (infix-get-prioritet a)
-                                                   (infix-get-prioritet b))))))
+            [(list (? token-id? fn) (? list? args) rest ...)
+             (cons (%lisp (foldl list (trans-fn fn args)
+                                 (map %id-syntax
+                                      (sort ops (lambda(a b)
+                                                  (> (infix-get-prioritet a)
+                                                     (infix-get-prioritet b)))))))
                    rest)]
             [(list e1 rest ...)
-             (cons `(#%lisp ,(foldl list (trans/i e1)
-                                    (sort ops (lambda(a b)
-                                                (> (infix-get-prioritet a)
-                                                   (infix-get-prioritet b))))))
+             (cons (%lisp (foldl list (trans/i e1)
+                                 (map %id-syntax
+                                      (sort ops (lambda(a b)
+                                                  (> (infix-get-prioritet a)
+                                                     (infix-get-prioritet b)))))))
                    rest)]))))
   
-  (define (token? tkn)
-    (and (syntax? tkn)
-         (not (or (stx-pair? tkn)
-                  (infix-operator? tkn)))))
+  (define (token-id? tkn)
+    (and (%id? tkn)
+         (not (infix-operator? tkn))))
   
-  (define (token-eq? tkn v)
-    (and (token? tkn)
-         (eq? (syntax->datum tkn) v)))
+  (define (token-data? tkn)
+    (or (token-id? tkn)
+        (not (pair? tkn))))
   
   (define (trans-fn name args)
-    (cons name (map trans/i (syntax->list args))))
+    (cons (%id-syntax name) (map trans/i args)))
   
   (define (trans/i iexp)
     (match iexp
-      [(? stx-pair? s)
-       (trans/i (syntax->list s))]
-      [(? token? id)
-       id]
-      [(list (? infix-const? e1) e2)
-       iexp]
-      [(list '#%lisp e)
-       e]
+      [(? %lisp? e)
+       (%lisp-source e)]
+      [(? token-data? v)
+       (if (%id? v) (%id-syntax v) v)]
+      [(list test r1 ... '? e1 r2 ... ': e2 r3 ...)
+       `(if ,(trans/i (cons test r1))
+            ,(trans/i (cons e1 r2))
+            ,(trans/i (cons e2 r3)))]
       [_
        (let* ([res null]
               [ops null]
@@ -157,7 +170,7 @@ THE SOFTWARE.
                             (< (infix-get-prioritet (car ops))
                                (infix-get-prioritet op)))]
                    (set! res
-                         (cons (list (car ops) (cadr res) (car res))
+                         (cons (list (%id-syntax (car ops)) (cadr res) (car res))
                                (cddr res)))
                    (set! ops (cdr ops)))
                  (set! ops (cons op ops)))]
@@ -169,29 +182,23 @@ THE SOFTWARE.
                        (car res)
                        (begin
                          (set! res
-                               (cons (list (car opers) (cadr res) (car res))
+                               (cons (list (%id-syntax (car opers)) (cadr res) (car res))
                                      (cddr res)))
                          (loop (cdr opers))))))])
          (let next ([exp iexp])
            (match exp
-             [(list '#%lisp e)
-              (genres e)]
+             [(? %lisp? e)
+              (genres (%lisp-source e))]
              [(list (? not-infix-operator? e))
               (genres (trans/i e))]
-             [(list (? token? fn) (? stx-list? args))
+             [(list (? token-id? fn) (? list? args))
               (genres (trans-fn fn args))]
-             [(list test r1 ... 
-                    (? (lambda(x) (token-eq? x '?)) then) e1 r2 ... 
-                    (? (lambda(x) (token-eq? x ':)) else) e2 r3 ...)
-              `(if ,(trans/i (cons test r1))
-                   ,(trans/i (cons e1 r2))
-                   ,(trans/i (cons e2 r3)))]
              [(list (? not-infix-operator? e)
                     (? infix-oper&bin&lr? op)
                     rest ...)
               (check op (trans/i e))
               (next (cddr exp))]
-             [(list (? token? fn) (? stx-list? args)
+             [(list (? token-id? fn) (? list? args)
                     (? infix-oper&bin&lr? op)
                     rest ...)
               (check op (trans-fn fn args))
@@ -203,13 +210,18 @@ THE SOFTWARE.
                           (car exp)
                           exp)))]
              [_
-              (raise-syntax-error '|infix: | "Please check syntax" iexp)])))]))
+              (raise-syntax-error 'infix "Syntax error" iexp)])))]))
   
+  (with-handlers ([exn:fail:syntax? (lambda(e)
+                                         (raise-syntax-error '|infix: | 
+                                                             "Please check syntax" so))])
   (syntax-case so (#%test)
     [(_ #%test s-exp . rest)
-     #`'#,(trans/i (syntax->list #'(s-exp . rest)))]
+       #`'#,(trans/i (cons (token-list #'s-exp)
+                           (token-list #'rest)))]
     [(_ s-exp . rest)
-     (datum->syntax so (trans/i (syntax->list #'(s-exp . rest))))]))
+     (datum->syntax so (trans/i (cons (token-list #'s-exp)
+                                      (token-list #'rest))))])))
 
 ;>(infix: 6 + (4 * 5 + 8) * 7 + 23)
 ;225
