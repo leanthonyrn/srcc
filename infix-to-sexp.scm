@@ -213,15 +213,15 @@ THE SOFTWARE.
               (raise-syntax-error 'infix "Syntax error" iexp)])))]))
   
   (with-handlers ([exn:fail:syntax? (lambda(e)
-                                         (raise-syntax-error '|infix: | 
-                                                             "Please check syntax" so))])
-  (syntax-case so (#%test)
-    [(_ #%test s-exp . rest)
+                                      (raise-syntax-error '|infix: | 
+                                                          "Please check syntax" so))])
+    (syntax-case so (#%test)
+      [(_ #%test s-exp . rest)
        #`'#,(trans/i (cons (token-list #'s-exp)
                            (token-list #'rest)))]
-    [(_ s-exp . rest)
-     (datum->syntax so (trans/i (cons (token-list #'s-exp)
-                                      (token-list #'rest))))])))
+      [(_ s-exp . rest)
+       (datum->syntax so (trans/i (cons (token-list #'s-exp)
+                                        (token-list #'rest))))])))
 
 ;>(infix: 6 + (4 * 5 + 8) * 7 + 23)
 ;225
